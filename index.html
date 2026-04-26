@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --sidebar-bg: #0f172a; --sidebar-hover: #1e293b; --sidebar-text: #94a3b8; --sidebar-active: #ffffff;
+            --topbar-bg: #ffffff; --main-bg: #f1f5f9; --panel-bg: #ffffff; --border-color: #e2e8f0; 
+            --primary-accent: #2563eb; --primary-hover: #1d4ed8; --success: #16a34a; --danger: #ef4444;
+            --text-main: #334155; --text-muted: #64748b;
+        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; margin: 0; padding: 0; }
+        body { display: flex; height: 100vh; background-color: var(--main-bg); color: var(--text-main); overflow: hidden; }
+
+        /* Auth Screen */
+        #auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .auth-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 100%; max-width: 400px; text-align: center; }
+        .auth-card h1 { margin-bottom: 5px; color: var(--primary-accent); font-size: 1.8rem; text-transform: uppercase;}
+        .auth-card h2 { margin-bottom: 25px; color: var(--text-muted); font-size: 1.1rem; font-weight: 500;}
+        .auth-card input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; outline: none; }
+        .auth-card input:focus { border-color: var(--primary-accent); }
+        .auth-card button { width: 100%; padding: 12px; background: var(--primary-accent); color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        .auth-card button:hover { background: var(--primary-hover); }
+        .auth-toggle { margin-top: 20px; font-size: 0.9rem; color: var(--text-muted); cursor: pointer; }
+        .auth-toggle span { color: var(--primary-accent); font-weight: bold; }
+        .auth-toggle span:hover { text-decoration: underline; }
+        .auth-error { color: var(--danger); margin-top: 15px; font-weight: 600; font-size: 0.9rem; min-height: 20px;}
+        .auth-success { color: var(--success); margin-top: 15px; font-weight: 600; font-size: 0.9rem; min-height: 20px;}
+
+        /* Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 10000; }
+        .modal-box { background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 380px; text-align: left; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .modal-box h3 { margin-bottom: 10px; color: var(--text-main); font-size: 1.2rem;}
+        .modal-box p { margin-bottom: 20px; color: var(--text-muted); font-size: 0.9rem;}
+        .modal-box label { font-size: 0.85rem; font-weight: bold; color: var(--text-main); margin-bottom: 5px; display: block; }
+        .modal-box input, .modal-box select { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
+        .modal-actions button { padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; }
+        .btn-cancel { background: #e2e8f0; color: #334155; } .btn-cancel:hover { background: #cbd5e1; }
+        .btn-confirm { background: var(--success); color: white; } .btn-confirm:hover { background: #15803d; }
+
+        /* App Structure */
+        #app-screen { display: none; width: 100%; height: 100%; flex-direction: row; }
+        .sidebar { width: 240px; background-color: var(--sidebar-bg); display: flex; flex-direction: column; flex-shrink: 0; }
+        .brand { padding: 20px; color: white; font-size: 1.2rem; font-weight: 700; border-bottom: 1px solid var(--sidebar-hover); text-transform: uppercase;}
+        .nav-menu { padding: 15px 0; display: flex; flex-direction: column; gap: 5px; }
+        .nav-item { padding: 12px 20px; color: var(--sidebar-text); cursor: pointer; font-weight: 500; border-left: 3px solid transparent; }
+        .nav-item:hover, .nav-item.active { background-color: var(--sidebar-hover); color: var(--sidebar-active); border-left-color: var(--primary-accent); }
+
+        .workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .topbar { height: 60px; background-color: var(--topbar-bg); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 25px; flex-shrink: 0; }
+        .content-area { flex: 1; padding: 20px; overflow-y: auto; }
+        .panel { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; height: 100%; }
+        
+        .header-controls { padding: 20px; border-bottom: 1px solid var(--border-color); display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background-color: #fafafa; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+        input[type="text"], input[type="number"], input[type="date"], select { padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.95rem; outline: none; }
+        input:focus, select:focus { border-color: var(--primary-accent); }
+
+        .grid-container { flex: 1; overflow-y: auto; position: relative; }
+        .data-grid { width: 100%; border-collapse: collapse; text-align: left; }
+        .data-grid th { position: sticky; top: 0; background-color: #f8fafc; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; padding: 12px 15px; border-bottom: 2px solid var(--border-color); z-index: 10; }
+        .data-grid td { border-bottom: 1px solid var(--border-color); padding: 4px; vertical-align: middle;}
+        .data-grid input { width: 100%; border: none; background: transparent; padding: 8px 10px; border-radius: 4px; }
+        .data-grid input:focus { background-color: #fff; border: 1px solid var(--primary-accent); }
+        .text-right { text-align: right; } .text-center { text-align: center; }
+        .row-credit { background-color: #fef2f2 !important; }
+
+        .footer-controls { padding: 15px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; background-color: #fafafa; }
+        .grand-total { font-size: 1.5rem; font-weight: 700; color: var(--primary-accent); background: #eff6ff; padding: 10px 20px; border-radius: 8px; border: 1px solid #bfdbfe; }
+        
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: 0.2s;}
+        .btn-primary { background-color: var(--primary-accent); color: white; }
+        .btn-success { background-color: var(--success); color: white; padding: 12px 25px; font-size: 1.05rem;}
+        .btn-danger { background-color: transparent; color: var(--danger); padding: 5px 10px; }
+        
+        .btn-action { color: white; padding: 6px 10px; font-size: 0.8rem; border-radius: 4px; margin-right: 4px; border: none; cursor: pointer;}
+        .btn-wa { background-color: #25D366; } .btn-wa:hover { background-color: #1ebc59; }
+        .btn-print { background-color: #64748b; } .btn-print:hover { background-color: #475569; }
+        .btn-clear { background-color: #f59e0b; } .btn-clear:hover { background-color: #d97706; }
+        .btn-edit { background-color: var(--primary-accent); } .btn-edit:hover { background-color: var(--primary-hover); }
+        .btn-update-mode { background-color: #0ea5e9; } .btn-update-mode:hover { background-color: #0284c7; }
+        .btn-wa-large { background-color: #25D366; color: white; padding: 12px 25px; font-size: 1.05rem; border-radius: 6px; margin-left: 10px; font-weight: 600; border: none; cursor: pointer;}
+        .btn-cancel-edit { background-color: #94a3b8; color: white; margin-right: 15px;} .btn-cancel-edit:hover { background-color: #64748b;}
+
+        .status-msg { padding: 10px 15px; border-radius: 6px; font-weight: 500; margin-right: 15px; }
+        .status-success { background-color: #dcfce7; color: #166534; }
+        .status-error { background-color: #fee2e2; color: #991b1b; }
+        .hidden { display: none !important; }
+        
+        /* Dashboard & Toolbars */
+        .dashboard-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; padding: 20px; background: #fafafa; border-bottom: 1px solid var(--border-color); }
+        .stat-card { background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; align-items: center; gap: 15px; }
+        .stat-icon { font-size: 24px; padding: 15px; border-radius: 8px;}
+        .icon-cash { background: #dcfce7; color: #166534; } .icon-gpay { background: #dbeafe; color: #1e40af; }
+        .icon-card { background: #f3e8ff; color: #6b21a8; } .icon-credit { background: #ffedd5; color: #9a3412; }
+        .stat-details h3 { margin: 0; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; }
+        .stat-details p { margin: 5px 0 0 0; font-size: 1.3rem; font-weight: bold; color: var(--text-main); }
+        
+        .toolbar { padding: 15px 20px; border-bottom: 1px solid var(--border-color); display: flex; gap: 15px; background-color: #ffffff; align-items: center; flex-wrap: wrap;}
+        .search-input { padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.95rem; width: 100%; max-width: 150px;}
+        .pending-alert { background-color: #fee2e2; color: #991b1b; padding: 12px 20px; border-radius: 6px; border: 1px solid #fca5a5; font-weight: bold; display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+
+        /* Receipt Render Area */
+        #receipt-capture-area { position: fixed; left: -9999px; top: 0; width: 380px; background: white; padding: 30px; color: black; font-family: 'Courier New', Courier, monospace; z-index: -1; }
+        .receipt-header { text-align: center; margin-bottom: 20px; border-bottom: 2px dashed #000; padding-bottom: 10px;}
+        .receipt-header h1 { margin: 0 0 5px 0; font-size: 24px; }
+        .receipt-details { margin-bottom: 20px; font-size: 14px;}
+        .receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .receipt-table th { border-bottom: 1px dashed #000; text-align: left; padding: 5px 0; font-size: 13px;}
+        .receipt-table td { padding: 5px 0; font-size: 13px;}
+        .receipt-total { border-top: 2px dashed #000; padding-top: 10px; text-align: right; font-weight: bold; font-size: 18px;}
+        .receipt-footer { text-align: center; margin-top: 30px; font-size: 12px; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #receipt-capture-area, #receipt-capture-area * { visibility: visible; }
+            #receipt-capture-area { left: 0; top: 0; width: 100%; z-index: 9999; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="auth-screen">
+        <div class="auth-card" id="login-container">
+            <h1>Billing SaaS</h1>
+            <h2>Account Login</h2>
+            <form onsubmit="handleLogin(event)">
+                <input type="text" id="login-user" placeholder="Username" required>
+                <input type="password" id="login-pass" placeholder="Password" required>
+                <button type="submit" id="login-btn">Secure Login</button>
+                <div id="login-msg" class="auth-error"></div>
+            </form>
+            <div class="auth-toggle">New to platform? <span onclick="toggleAuthMode()">Register your Shop</span></div>
+        </div>
+
+        <div class="auth-card hidden" id="register-container">
+            <h1>Register Shop</h1>
+            <h2>Create New Account</h2>
+            <form onsubmit="handleRegister(event)">
+                <input type="text" id="reg-shop" placeholder="Your Shop/Business Name" required>
+                <input type="text" id="reg-user" placeholder="Desired Username" required>
+                <input type="password" id="reg-pass" placeholder="Password" required>
+                <button type="submit" id="reg-btn">Create Account</button>
+                <div id="reg-msg" class="auth-error"></div>
+            </form>
+            <div class="auth-toggle">Already registered? <span onclick="toggleAuthMode()">Login here</span></div>
+        </div>
+    </div>
+
+    <div id="custom-modal-overlay" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Clear Due Payment</h3>
+            <p>Bill: <strong id="modal-bill-no"></strong> <br> Due: <strong style="color:var(--danger)">₹<span id="modal-balance"></span></strong></p>
+            
+            <label>Amount Received (₹)</label>
+            <input type="number" id="modal-amount" step="0.01" required>
+            
+            <label>Payment Method</label>
+            <select id="modal-mode">
+                <option value="Cash">Cash</option>
+                <option value="GPay">GPay (UPI)</option>
+                <option value="Card">Debit/Credit Card</option>
+            </select>
+
+            <label>Clearance Date</label>
+            <input type="date" id="modal-date" required>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeCreditModal()">Cancel</button>
+                <button class="btn-confirm" id="modal-confirm-btn" onclick="submitCreditClear()">Update Record</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="update-mode-overlay" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Update Payment Method</h3>
+            <p>Bill: <strong id="update-modal-bill-no"></strong></p>
+            <label>Change Payment Method To:</label>
+            <select id="update-modal-mode">
+                <option value="Cash">Cash Payment</option>
+                <option value="GPay">GPay (UPI)</option>
+                <option value="Card">Debit/Credit Card</option>
+                <option value="Credit">Store Credit</option>
+            </select>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeUpdateModeModal()">Cancel</button>
+                <button class="btn-confirm" id="update-modal-btn" onclick="submitUpdateMode()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receipt-capture-area"></div>
+
+    <div id="app-screen">
+        <datalist id="items-master-list"></datalist>
+
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="dynamic-shop-name">SHOP NAME</span> <br>
+                <span id="display-username" style="font-size: 0.8rem; font-weight: 400; color: var(--success); text-transform: none;"></span>
+            </div>
+            <nav class="nav-menu">
+                <div class="nav-item active" id="nav-voucher" onclick="switchTab('voucher')">Sales Voucher</div>
+                <div class="nav-item" id="nav-records" onclick="switchTab('records')">My Transactions</div>
+                <div class="nav-item" id="nav-items" onclick="switchTab('items')">Manage Items</div>
+                <div class="nav-item" id="nav-reports" onclick="switchTab('reports')">Sales Report</div>
+                <div class="nav-item" style="margin-top: auto; border-top: 1px solid var(--sidebar-hover); color: var(--danger);" onclick="logout()">Logout</div>
+            </nav>
+        </aside>
+
+        <main class="workspace">
+            <header class="topbar">
+                <h2 id="page-title">Create Sales Voucher</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span id="data-sync-status" style="font-size: 0.85rem; color: var(--text-muted);">Syncing Items...</span>
+                    <div id="current-date" style="font-weight: 500; color: var(--text-muted);"></div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                
+                <div id="view-voucher" class="panel">
+                    <form id="billing-form" onsubmit="submitBill(event)" style="display: flex; flex-direction: column; height: 100%;">
+                        <div class="header-controls">
+                            <div class="form-group">
+                                <label for="customer-name">Customer Name</label>
+                                <input type="text" id="customer-name" required placeholder="Enter customer name">
+                            </div>
+                            <div class="form-group">
+                                <label for="mobile-no">Mobile Number (Checks Pending)</label>
+                                <input type="text" id="mobile-no" placeholder="Enter 10-digit mobile number" pattern="[0-9]{10}" oninput="checkPendingCredit()">
+                            </div>
+                        </div>
+
+                        <div id="pending-alert" class="pending-alert hidden" style="margin: 0 20px 15px 20px;">
+                            <span>⚠️ ALERT: This customer has a pending credit balance of ₹<span id="pending-amt"></span>.</span>
+                            <button type="button" class="btn-cancel" style="padding:4px 8px; font-size:0.8rem;" onclick="document.getElementById('pending-alert').classList.add('hidden')">Dismiss</button>
+                        </div>
+
+                        <div class="grid-container">
+                            <table class="data-grid" id="items-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 5%;" class="text-center">#</th>
+                                        <th style="width: 45%;">Item Description</th>
+                                        <th style="width: 15%;" class="text-center">Qty</th>
+                                        <th style="width: 15%;" class="text-right">Rate (₹)</th>
+                                        <th style="width: 15%;" class="text-right">Total (₹)</th>
+                                        <th style="width: 5%;" class="text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="items-body"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="footer-controls">
+                            <button type="button" class="btn" style="background: var(--border-color);" onclick="addSingleRow()">+ Add Row</button>
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <div id="status-msg" class="status-msg hidden"></div>
+                                
+                                <div class="form-group" style="margin-bottom: 0; width: 110px;">
+                                    <label>Discount (₹)</label>
+                                    <input type="number" id="bill-discount" step="0.01" min="0" value="0" style="padding: 12px; font-weight: 600;" oninput="calculateTotal()">
+                                </div>
+
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label>Mode</label>
+                                    <select id="payment-mode" required style="padding: 12px; font-weight: 600;">
+                                        <option value="Cash" selected>Cash</option>
+                                        <option value="GPay">GPay (UPI)</option>
+                                        <option value="Card">Card</option>
+                                        <option value="Credit">Credit</option>
+                                    </select>
+                                </div>
+                                <div class="grand-total">Total: ₹<span id="grand-total-display">0.00</span></div>
+                                
+                                <button type="button" class="btn btn-cancel-edit hidden" id="cancel-edit-btn" onclick="cancelBillEdit()">Cancel Edit</button>
+                                <button type="submit" class="btn btn-success" id="submit-btn" onclick="submitAction='save'">Save Bill</button>
+                                <button type="submit" class="btn-wa-large" id="submit-wa-btn" onclick="submitAction='whatsapp'">Save & Send 📸</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="view-records" class="panel hidden">
+                    <div class="dashboard-cards">
+                        <div class="stat-card"><div class="stat-icon icon-cash">💵</div><div class="stat-details"><h3>Filtered Cash</h3><p id="dash-cash">₹0.00</p></div></div>
+                        <div class="stat-card"><div class="stat-icon icon-gpay">📱</div><div class="stat-details"><h3>Filtered UPI</h3><p id="dash-gpay">₹0.00</p></div></div>
+                        <div class="stat-card"><div class="stat-icon icon-card">💳</div><div class="stat-details"><h3>Filtered Card</h3><p id="dash-card">₹0.00</p></div></div>
+                        <div class="stat-card"><div class="stat-icon icon-credit">📒</div><div class="stat-details"><h3>Filtered Credit</h3><p id="dash-credit">₹0.00</p></div></div>
+                    </div>
+
+                    <div class="toolbar">
+                        <button class="btn btn-primary" onclick="fetchRecords()" style="margin-right: 5px;">🔄 Refresh</button>
+                        <button class="btn btn-success" onclick="exportRecordsToExcel()" style="margin-right: 15px;">📥 Export Excel</button>
+                        
+                        <div style="display: flex; align-items: center; gap: 5px; margin-right: 10px;">
+                            <label style="font-size: 0.8rem; font-weight:bold; color:var(--text-muted)">From:</label>
+                            <input type="date" id="filter-start-date" class="search-input" style="padding:8px;" onchange="applyFilters()">
+                            <label style="font-size: 0.8rem; font-weight:bold; color:var(--text-muted)">To:</label>
+                            <input type="date" id="filter-end-date" class="search-input" style="padding:8px;" onchange="applyFilters()">
+                        </div>
+
+                        <input type="text" id="search-name" class="search-input" placeholder="🔍 Name..." oninput="applyFilters()">
+                        <input type="text" id="search-mobile" class="search-input" placeholder="📱 Mobile..." oninput="applyFilters()">
+                        <select id="filter-mode" onchange="applyFilters()" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+                            <option value="All">All Modes</option>
+                            <option value="Cash">Cash Only</option>
+                            <option value="GPay">GPay Only</option>
+                            <option value="Card">Card Only</option>
+                            <option value="Credit">Credit Only</option>
+                        </select>
+                    </div>
+
+                    <div class="grid-container" style="padding: 0;">
+                        <table class="data-grid">
+                            <thead>
+                                <tr>
+                                    <th style="width: 10%;">Date</th>
+                                    <th style="width: 10%;">Bill No</th>
+                                    <th style="width: 15%;">Customer</th>
+                                    <th style="width: 10%;">Mobile</th>
+                                    <th style="width: 20%;">Items</th>
+                                    <th style="width: 12%;" class="text-center">Status</th>
+                                    <th style="width: 8%;" class="text-right">Total</th>
+                                    <th style="width: 15%;" class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="records-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="view-items" class="panel hidden">
+                    <div class="header-controls" style="display: flex; gap: 15px; align-items: flex-end;">
+                        <form id="add-item-form" onsubmit="submitItemForm(event)" style="display: flex; gap: 20px; width: 100%; align-items: flex-end;">
+                            <div class="form-group" style="flex: 2;">
+                                <label>Item Name / Description</label>
+                                <input type="text" id="new-item-name" required placeholder="e.g. 1kg Sugar">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Rate (₹)</label>
+                                <input type="number" id="new-item-rate" step="0.01" required placeholder="0.00">
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="btn-add-item">Add New Item</button>
+                            <button type="button" class="btn btn-cancel hidden" id="btn-cancel-edit-item" onclick="cancelItemEditMode()">Cancel</button>
+                        </form>
+                    </div>
+
+                    <div class="grid-container">
+                        <table class="data-grid">
+                            <thead>
+                                <tr>
+                                    <th style="width: 60%;">My Item Inventory</th>
+                                    <th style="width: 20%; text-align: right;">Saved Rate (₹)</th>
+                                    <th style="width: 20%; text-align: center;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="view-reports" class="panel hidden">
+                    <div class="toolbar">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-right: 15px;">
+                            <label style="font-size: 0.8rem; font-weight:bold; color:var(--text-muted)">From:</label>
+                            <input type="date" id="report-start-date" class="search-input" style="padding:8px;" onchange="generateSalesReport()">
+                            <label style="font-size: 0.8rem; font-weight:bold; color:var(--text-muted)">To:</label>
+                            <input type="date" id="report-end-date" class="search-input" style="padding:8px;" onchange="generateSalesReport()">
+                        </div>
+
+                        <button class="btn btn-primary" onclick="generateSalesReport()">📊 Generate Report</button>
+                        <button class="btn btn-success" style="margin-left: 10px;" onclick="exportReportToExcel()">📥 Download Excel</button>
+                    </div>
+                    <div class="grid-container">
+                        <table class="data-grid">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50%;">Item Name</th>
+                                    <th style="width: 25%; text-align: center;">Total Quantity Sold</th>
+                                    <th style="width: 25%; text-align: right;">Total Revenue (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-body">
+                                <tr><td colspan="3" class="text-center">Click "Generate Report" to view statistics.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ==========================================
+        // REPLACE WITH YOUR APPS SCRIPT WEB APP URL
+        // ==========================================
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzF-cj9Thegbt2eu6hF5nQmLNAozcW_yZpTu-Hv-AHRv_MbG1tEWJyurgAnaewzh4Pf/exec"; 
+        
+        let allRecords = [];
+        let masterItems = []; 
+        let finalGrandTotal = 0;
+        let currentUser = "";
+        let currentShopName = "";
+        let submitAction = "save"; 
+        
+        let pendingClearBillNo = "";
+        let pendingUpdateModeBillNo = "";
+        let editingItemOldName = null;
+        let editingBillNo = null; // NEW: Track if we are editing an existing bill
+
+        document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+
+        function parseRecordDate(dateStr) {
+            if(!dateStr) return new Date(0);
+            try {
+                const parts = dateStr.split(',')[0].split('/');
+                if(parts.length === 3) return new Date(parts[2], parts[1]-1, parts[0]);
+                return new Date(dateStr); 
+            } catch(e) { return new Date(0); }
+        }
+
+        function toggleAuthMode() {
+            const logCon = document.getElementById('login-container');
+            const regCon = document.getElementById('register-container');
+            document.getElementById('login-msg').innerText = ""; document.getElementById('reg-msg').innerText = "";
+            if(logCon.classList.contains('hidden')) { logCon.classList.remove('hidden'); regCon.classList.add('hidden'); } 
+            else { logCon.classList.add('hidden'); regCon.classList.remove('hidden'); }
+        }
+
+        async function handleRegister(event) {
+            event.preventDefault();
+            const btn = document.getElementById('reg-btn'); const msgDiv = document.getElementById('reg-msg');
+            const shop = document.getElementById('reg-shop').value; const user = document.getElementById('reg-user').value; const pass = document.getElementById('reg-pass').value;
+            btn.disabled = true; btn.innerText = "Registering..."; msgDiv.innerText = ""; msgDiv.className = "auth-error";
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'register', shopName: shop, username: user, password: pass }) });
+                const result = await response.json();
+                if (result.status === "Success") {
+                    msgDiv.className = "auth-success"; msgDiv.innerText = result.message; setTimeout(toggleAuthMode, 2000); 
+                } else { msgDiv.innerText = result.message; }
+            } catch (err) { msgDiv.innerText = "Connection Error. Check URL."; } finally { btn.disabled = false; btn.innerText = "Create Account"; }
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            const btn = document.getElementById('login-btn'); const msgDiv = document.getElementById('login-msg');
+            const user = document.getElementById('login-user').value; const pass = document.getElementById('login-pass').value;
+            btn.disabled = true; btn.innerText = "Authenticating..."; msgDiv.innerText = ""; msgDiv.className = "auth-error";
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'login', username: user, password: pass }) });
+                const result = await response.json();
+                if (result.status === "Success") {
+                    currentUser = user; currentShopName = result.shopName;
+                    document.querySelectorAll('.dynamic-shop-name').forEach(el => el.innerText = currentShopName);
+                    document.getElementById('display-username').innerText = "👤 Logged in as: " + user;
+                    document.getElementById('auth-screen').style.display = "none";
+                    document.getElementById('app-screen').style.display = "flex";
+                    initializeWorkspace();
+                } else { msgDiv.innerText = result.message; }
+            } catch (err) { msgDiv.innerText = "Connection Error. Check URL."; } finally { btn.disabled = false; btn.innerText = "Secure Login"; }
+        }
+
+        function logout() {
+            currentUser = ""; currentShopName = "";
+            document.getElementById('login-form').reset(); document.getElementById('register-container').querySelector('form').reset();
+            document.getElementById('app-screen').style.display = "none"; document.getElementById('auth-screen').style.display = "flex";
+            document.getElementById('login-container').classList.remove('hidden'); document.getElementById('register-container').classList.add('hidden');
+        }
+
+        function initializeWorkspace() {
+            fetchMasterItems(); document.getElementById('items-body').innerHTML = ''; addSingleRow(); 
+            document.getElementById('bill-discount').value = 0; silentFetchRecords();
+        }
+
+        async function silentFetchRecords() {
+            try {
+                const response = await fetch(APPS_SCRIPT_URL + "?action=getRecords&user=" + encodeURIComponent(currentUser));
+                allRecords = await response.json();
+            } catch (error) { console.log("Silent sync failed"); }
+        }
+
+        async function fetchMasterItems() {
+            const syncStatus = document.getElementById('data-sync-status');
+            try {
+                const response = await fetch(APPS_SCRIPT_URL + "?action=getItems&user=" + encodeURIComponent(currentUser));
+                masterItems = await response.json();
+                document.getElementById('items-master-list').innerHTML = masterItems.map(item => `<option value="${item.name}">`).join('');
+                renderInventoryTable(); syncStatus.innerText = `✅ Items Synced`; syncStatus.style.color = "var(--success)";
+            } catch (error) { syncStatus.innerText = "❌ Sync Failed"; syncStatus.style.color = "var(--danger)"; }
+        }
+
+        function checkPendingCredit() {
+            const mob = document.getElementById('mobile-no').value.trim();
+            const alertDiv = document.getElementById('pending-alert'); const amtSpan = document.getElementById('pending-amt');
+            if(mob.length !== 10 || allRecords.length === 0) { alertDiv.classList.add('hidden'); return; }
+
+            let totalPending = 0;
+            allRecords.forEach(r => {
+                if(String(r.MobileNo) === mob) {
+                    let modeText = String(r.PaymentMode);
+                    if(modeText.includes('Credit') && !modeText.includes('Cleared')) {
+                        let balance = parseFloat(r.Total) || 0;
+                        let balMatch = modeText.match(/Bal:\s*₹([\d.]+)/);
+                        if(balMatch) balance = parseFloat(balMatch[1]);
+                        totalPending += balance;
+                    }
+                }
+            });
+            if(totalPending > 0) { amtSpan.innerText = totalPending.toFixed(2); alertDiv.classList.remove('hidden'); } 
+            else { alertDiv.classList.add('hidden'); }
+        }
+
+        function handleRowInput(inputElement) {
+            calculateTotal(); const row = inputElement.closest('tr'); const tbody = document.getElementById('items-body');
+            if (row === tbody.lastElementChild) {
+                if (row.querySelector('.item-name').value.trim() !== "" || row.querySelector('.item-qty').value !== "" || row.querySelector('.item-price').value !== "") addSingleRow();
+            }
+        }
+
+        function autoFillRate(inputElement) {
+            const matchedItem = masterItems.find(item => item.name === inputElement.value);
+            if (matchedItem) { inputElement.closest('tr').querySelector('.item-price').value = matchedItem.rate; }
+            handleRowInput(inputElement); 
+        }
+
+        function createRowHTML(index) {
+            return `
+                <tr>
+                    <td class="text-center sno-cell">${index}</td>
+                    <td><input type="text" class="item-name" placeholder="Type or select..." list="items-master-list" onchange="autoFillRate(this)" oninput="handleRowInput(this)"></td>
+                    <td><input type="number" class="item-qty text-center" min="1" oninput="handleRowInput(this)"></td>
+                    <td><input type="number" class="item-price text-right" min="0" step="0.01" oninput="handleRowInput(this)"></td>
+                    <td><input type="text" class="row-total text-right" readonly value="0.00" tabindex="-1"></td>
+                    <td class="text-center"><button type="button" class="btn-action btn-danger" onclick="clearOrRemoveRow(this)" tabindex="-1">✕</button></td>
+                </tr>
+            `;
+        }
+
+        function addSingleRow() { document.getElementById('items-body').insertAdjacentHTML('beforeend', createRowHTML(document.getElementById('items-body').children.length + 1)); updateSerialNumbers(); }
+
+        function clearOrRemoveRow(btn) {
+            const row = btn.closest('tr'); const tbody = document.getElementById('items-body');
+            if (tbody.children.length > 1) { 
+                row.remove(); updateSerialNumbers(); 
+            } else { row.querySelectorAll('input').forEach(i => i.value = (i.className.includes('total') ? '0.00' : '')); }
+            calculateTotal();
+        }
+
+        function updateSerialNumbers() {
+            document.querySelectorAll('.sno-cell').forEach((td, i) => td.innerText = i + 1);
+        }
+
+        function calculateTotal() {
+            let grandTotal = 0;
+            document.querySelectorAll('#items-body tr').forEach(row => {
+                const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+                const price = parseFloat(row.querySelector('.item-price').value) || 0;
+                let rowTotal = (row.querySelector('.item-name').value.trim() !== "" || qty > 0 || price > 0) ? qty * price : 0;
+                row.querySelector('.row-total').value = rowTotal.toFixed(2);
+                grandTotal += rowTotal;
+            });
+            let discount = parseFloat(document.getElementById('bill-discount').value) || 0;
+            finalGrandTotal = grandTotal - discount; if(finalGrandTotal < 0) finalGrandTotal = 0; 
+            document.getElementById('grand-total-display').textContent = finalGrandTotal.toFixed(2);
+        }
+
+        function switchTab(tab) {
+            ['nav-voucher', 'nav-records', 'nav-items', 'nav-reports'].forEach(id => document.getElementById(id).classList.remove('active'));
+            ['view-voucher', 'view-records', 'view-items', 'view-reports'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            
+            document.getElementById('nav-' + tab).classList.add('active'); document.getElementById('view-' + tab).classList.remove('hidden');
+
+            if(tab === 'voucher') {
+                document.getElementById('page-title').innerText = editingBillNo ? "Edit Sales Voucher: " + editingBillNo : "Create Sales Voucher";
+            }
+            else if (tab === 'records') { document.getElementById('page-title').innerText = "My Transactions"; fetchRecords(); } 
+            else if (tab === 'items') { document.getElementById('page-title').innerText = "Manage My Items"; renderInventoryTable(); }
+            else if (tab === 'reports') { document.getElementById('page-title').innerText = "Sales Report Dashboard"; }
+        }
+
+        function showStatus(message, isError = false) {
+            const statusBox = document.getElementById('status-msg');
+            statusBox.textContent = message; statusBox.className = `status-msg ${isError ? 'status-error' : 'status-success'}`;
+            statusBox.classList.remove('hidden'); setTimeout(() => statusBox.classList.add('hidden'), 4000);
+        }
+
+        // --- Edit Bill Logic ---
+        function editBill(billNo) {
+            const record = allRecords.find(r => r.BillNo === billNo);
+            if (!record) return;
+
+            editingBillNo = billNo;
+            switchTab('voucher');
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+            document.getElementById('submit-btn').innerText = "Update Bill";
+            document.getElementById('submit-wa-btn').innerText = "Update & Send 📸";
+
+            document.getElementById('customer-name').value = record.CustomerName;
+            document.getElementById('mobile-no').value = record.MobileNo;
+
+            let baseMode = "Cash"; 
+            if(record.PaymentMode.includes("GPay")) baseMode = "GPay"; 
+            else if(record.PaymentMode.includes("Card")) baseMode = "Card"; 
+            else if(record.PaymentMode.includes("Credit")) baseMode = "Credit";
+            document.getElementById('payment-mode').value = baseMode;
+
+            const tbody = document.getElementById('items-body');
+            tbody.innerHTML = '';
+            let discount = 0;
+
+            const itemsArray = String(record.Items).split(" | ");
+            itemsArray.forEach(itemStr => {
+                if(itemStr.startsWith("Discount:")) {
+                    const discountMatch = itemStr.match(/Discount:\s*-₹([\d.]+)/);
+                    if(discountMatch) discount = parseFloat(discountMatch[1]);
+                } else {
+                    const parts = itemStr.match(/^(\d+)x\s+(.+)\s+\(@₹([\d.]+)\)$/);
+                    if(parts) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="text-center sno-cell"></td>
+                            <td><input type="text" class="item-name" value="${parts[2]}" list="items-master-list" onchange="autoFillRate(this)" oninput="handleRowInput(this)"></td>
+                            <td><input type="number" class="item-qty text-center" min="1" value="${parts[1]}" oninput="handleRowInput(this)"></td>
+                            <td><input type="number" class="item-price text-right" min="0" step="0.01" value="${parts[3]}" oninput="handleRowInput(this)"></td>
+                            <td><input type="text" class="row-total text-right" readonly value="${(parts[1]*parts[3]).toFixed(2)}" tabindex="-1"></td>
+                            <td class="text-center"><button type="button" class="btn-action btn-danger" onclick="clearOrRemoveRow(this)" tabindex="-1">✕</button></td>
+                        `;
+                        tbody.appendChild(tr);
+                    }
+                }
+            });
+            document.getElementById('bill-discount').value = discount;
+            addSingleRow(); 
+            calculateTotal();
+            checkPendingCredit();
+        }
+
+        function cancelBillEdit() {
+            editingBillNo = null;
+            document.getElementById('billing-form').reset();
+            document.getElementById('bill-discount').value = 0;
+            document.getElementById('items-body').innerHTML = ''; addSingleRow(); 
+            calculateTotal();
+            document.getElementById('pending-alert').classList.add('hidden');
+
+            document.getElementById('page-title').innerText = "Create Sales Voucher";
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+            document.getElementById('submit-btn').innerText = "Save Bill";
+            document.getElementById('submit-wa-btn').innerText = "Save & Send 📸";
+        }
+
+        // --- Save / Update Bill Execution ---
+        async function submitBill(event) {
+            event.preventDefault();
+            if(finalGrandTotal <= 0 && document.getElementById('items-table').querySelectorAll('tbody tr').length === 1) { alert("Please add at least one valid item."); return; }
+
+            const mobileInput = document.getElementById('mobile-no').value; const customerName = document.getElementById('customer-name').value;
+            const mode = document.getElementById('payment-mode').value; const discount = parseFloat(document.getElementById('bill-discount').value) || 0;
+            
+            if(submitAction === 'whatsapp' && (!mobileInput || mobileInput.length < 10)) { alert("Please enter a valid 10-digit mobile number to send a WhatsApp message."); return; }
+
+            const submitBtn = document.getElementById('submit-btn'); const submitWaBtn = document.getElementById('submit-wa-btn');
+            const rows = document.querySelectorAll('#items-body tr'); let itemBreakdownArray = [];
+            
+            rows.forEach(row => {
+                const name = row.querySelector('.item-name').value.trim(); const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+                const price = parseFloat(row.querySelector('.item-price').value) || 0;
+                if (name !== "" && qty > 0) itemBreakdownArray.push(`${qty}x ${name} (@₹${price})`);
+            });
+
+            if(itemBreakdownArray.length === 0) return;
+            if(discount > 0) { itemBreakdownArray.push(`Discount: -₹${discount.toFixed(2)}`); }
+
+            const formattedItemDetails = itemBreakdownArray.join(" | ");
+            
+            // Choose action based on editing state
+            const payload = { 
+                action: editingBillNo ? 'updateBill' : 'saveBill', 
+                billNo: editingBillNo, // Only used if updating
+                username: currentUser, customerName: customerName, mobileNo: mobileInput, 
+                itemDetails: formattedItemDetails, amount: finalGrandTotal.toFixed(2), paymentMode: mode 
+            };
+
+            submitBtn.disabled = true; submitWaBtn.disabled = true;
+            if(submitAction === 'save') submitBtn.innerHTML = editingBillNo ? "Updating..." : "Saving..."; 
+            else submitWaBtn.innerHTML = "Capturing...";
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const result = await response.json();
+                
+                if(result.status === "Success") {
+                    let activeBillNo = result.billNo || editingBillNo;
+                    showStatus(`✅ Bill ${activeBillNo} saved!`); 
+                    const receiptHTML = generateReceiptHTML(result.date || new Date().toLocaleString('en-IN'), activeBillNo, customerName, mobileInput, itemBreakdownArray, mode, finalGrandTotal.toFixed(2));
+
+                    if(submitAction === 'whatsapp') { takeScreenshotAndWhatsApp(mobileInput, receiptHTML); } 
+                    else { document.getElementById('print-receipt-container').innerHTML = receiptHTML; window.print(); }
+
+                    cancelBillEdit(); // Resets everything safely
+                    silentFetchRecords(); 
+
+                } else { showStatus("❌ Error saving.", true); }
+            } catch (error) { showStatus("❌ Network Error.", true); } 
+            finally { 
+                submitBtn.disabled = false; submitBtn.innerHTML = editingBillNo ? "Update Bill" : "Save Bill"; 
+                submitWaBtn.disabled = false; submitWaBtn.innerHTML = editingBillNo ? "Update & Send 📸" : "Save & Send 📸"; 
+            }
+        }
+
+        // --- Item Management ---
+        async function submitItemForm(event) {
+            event.preventDefault();
+            const btn = document.getElementById('btn-add-item'); const name = document.getElementById('new-item-name').value; const rate = document.getElementById('new-item-rate').value;
+            btn.disabled = true; btn.innerText = "Saving...";
+
+            let payload = editingItemOldName 
+                ? { action: 'updateItem', username: currentUser, oldItemName: editingItemOldName, newItemName: name, itemRate: rate }
+                : { action: 'addItem', username: currentUser, itemName: name, itemRate: rate };
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const result = await response.json();
+                if(result.status === "Success") { cancelItemEditMode(); fetchMasterItems(); } else { alert("❌ " + result.message); }
+            } catch(e) { alert("❌ Error connecting to server."); } finally { btn.disabled = false; btn.innerText = editingItemOldName ? "Update Item" : "Add New Item"; }
+        }
+
+        function triggerEditItem(name, rate) {
+            document.getElementById('new-item-name').value = name; document.getElementById('new-item-rate').value = rate; editingItemOldName = name;
+            document.getElementById('btn-add-item').innerText = "Update Item"; document.getElementById('btn-cancel-edit-item').classList.remove('hidden');
+        }
+
+        function cancelItemEditMode() {
+            document.getElementById('add-item-form').reset(); editingItemOldName = null;
+            document.getElementById('btn-add-item').innerText = "Add New Item"; document.getElementById('btn-cancel-edit-item').classList.add('hidden');
+        }
+
+        function renderInventoryTable() {
+            const tbody = document.getElementById('inventory-body'); tbody.innerHTML = "";
+            if(masterItems.length === 0) { tbody.innerHTML = "<tr><td colspan='3' class='text-center'>No items found. Add your first product above!</td></tr>"; return; }
+            [...masterItems].reverse().forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td style="font-weight: 500;">${item.name}</td><td style="text-align: right; font-weight: bold; color: var(--primary-accent);">₹${parseFloat(item.rate).toFixed(2)}</td><td style="text-align: center;"><button class="btn-action btn-edit" onclick="triggerEditItem('${item.name}', '${item.rate}')">✏️ Edit</button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- Receipt Generation ---
+        function generateReceiptHTML(date, billNo, name, mobile, itemsArray, mode, total) {
+            let itemsHTML = ''; let arrayToProcess = typeof itemsArray === 'string' ? itemsArray.split(" | ") : itemsArray;
+            arrayToProcess.forEach(itemStr => {
+                if(itemStr.startsWith("Discount:")) {
+                    itemsHTML += `<tr><td colspan="3" style="text-align:right; font-weight:bold;">Discount</td><td style="text-align:right; font-weight:bold; color:red;">${itemStr.split(':')[1]}</td></tr>`;
+                } else {
+                    const parts = itemStr.match(/^(\d+)x\s+(.+)\s+\(@₹([\d.]+)\)$/);
+                    if(parts) {
+                        const qty = parts[1]; const desc = parts[2]; const rate = parseFloat(parts[3]); const rowTotal = (qty * rate).toFixed(2);
+                        itemsHTML += `<tr><td>${desc}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">${rate.toFixed(2)}</td><td style="text-align:right;">${rowTotal}</td></tr>`;
+                    } else { itemsHTML += `<tr><td colspan="4">${itemStr}</td></tr>`; }
+                }
+            });
+
+            return `
+                <div class="receipt-header"><h1>${currentShopName}</h1><p style="margin:0; font-size:12px;">Tax Invoice / Bill of Supply</p></div>
+                <div class="receipt-details">
+                    <strong>Bill No:</strong> ${billNo} <br> <strong>Date:</strong> ${date} <br>
+                    <strong>Customer:</strong> ${name} <br> <strong>Mobile:</strong> ${mobile || '-'} <br> <strong>Status:</strong> ${mode}
+                </div>
+                <table class="receipt-table">
+                    <thead><tr><th>Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Amt</th></tr></thead>
+                    <tbody>${itemsHTML}</tbody>
+                </table>
+                <div class="receipt-total">Grand Total: ₹${total}</div>
+                <div class="receipt-footer">Thank you for your business!<br>Visit Again.</div>
+            `;
+        }
+
+        async function takeScreenshotAndWhatsApp(mobile, htmlContent) {
+            const container = document.getElementById('receipt-capture-area'); container.innerHTML = htmlContent;
+            try {
+                const canvas = await html2canvas(container, { backgroundColor: '#ffffff', scale: 2 });
+                canvas.toBlob(async function(blob) {
+                    try {
+                        const item = new ClipboardItem({ "image/png": blob }); await navigator.clipboard.write([item]);
+                        alert("📸 Receipt Image copied to clipboard!\n\nWhatsApp will now open. Just press Paste (Ctrl+V) in the chat to send it.");
+                    } catch (clipErr) { alert("Could not copy to clipboard automatically. Sending a text message instead."); }
+                    let formattedMobile = mobile.replace(/\D/g, ''); if(formattedMobile.length === 10) formattedMobile = "91" + formattedMobile; 
+                    window.open(`https://wa.me/${formattedMobile}`, '_blank');
+                }, 'image/png');
+            } catch(e) { alert("Screenshot failed. Please use standard Print."); }
+        }
+
+        // --- Records & Filters ---
+        async function fetchRecords() {
+            const tbody = document.getElementById('records-body');
+            tbody.innerHTML = "<tr><td colspan='8' class='text-center' style='padding: 20px;'>Loading transactions...</td></tr>";
+            try {
+                const response = await fetch(APPS_SCRIPT_URL + "?action=getRecords&user=" + encodeURIComponent(currentUser));
+                allRecords = await response.json(); applyFilters(); 
+            } catch (error) { tbody.innerHTML = "<tr><td colspan='8' class='text-center status-error'>Failed to load data.</td></tr>"; }
+        }
+
+        function applyFilters() {
+            const nameQuery = document.getElementById('search-name').value.toLowerCase(); const mobQuery = document.getElementById('search-mobile').value.toLowerCase();
+            const mode = document.getElementById('filter-mode').value;
+            const startVal = document.getElementById('filter-start-date').value; const endVal = document.getElementById('filter-end-date').value;
+
+            let filtered = allRecords.filter(r => {
+                const matchName = r.CustomerName ? String(r.CustomerName).toLowerCase().includes(nameQuery) : false;
+                const matchMob = r.MobileNo ? String(r.MobileNo).toLowerCase().includes(mobQuery) : false;
+                const matchMode = mode === 'All' ? true : String(r.PaymentMode).startsWith(mode);
+                
+                let matchDate = true;
+                if(startVal || endVal) {
+                    let rDate = parseRecordDate(r.Date);
+                    if(startVal) { let sDate = new Date(startVal); sDate.setHours(0,0,0,0); if(rDate < sDate) matchDate = false; }
+                    if(endVal) { let eDate = new Date(endVal); eDate.setHours(23,59,59,999); if(rDate > eDate) matchDate = false; }
+                }
+                return (nameQuery === '' || matchName) && (mobQuery === '' || matchMob) && matchMode && matchDate;
+            });
+            updateDashboard(filtered); renderTable(filtered);
+        }
+
+        function updateDashboard(records) {
+            let totals = { Cash: 0, GPay: 0, Card: 0, Credit: 0 };
+            records.forEach(r => {
+                let mode = r.PaymentMode || "";
+                if(mode.includes("Cash") || mode.includes("Cleared")) totals.Cash += parseFloat(r.Total || 0); 
+                else if(mode.includes("GPay")) totals.GPay += parseFloat(r.Total || 0);
+                else if(mode.includes("Card")) totals.Card += parseFloat(r.Total || 0);
+                else if(mode.includes("Credit") && !mode.includes("Cleared")) totals.Credit += parseFloat(r.Total || 0);
+            });
+            document.getElementById('dash-cash').innerText = '₹' + totals.Cash.toFixed(2); document.getElementById('dash-gpay').innerText = '₹' + totals.GPay.toFixed(2);
+            document.getElementById('dash-card').innerText = '₹' + totals.Card.toFixed(2); document.getElementById('dash-credit').innerText = '₹' + totals.Credit.toFixed(2);
+        }
+
+        // --- Modals ---
+        function openCreditModal(billNo, currentStatus, originalTotal) {
+            let balance = parseFloat(originalTotal); let balMatch = currentStatus.match(/Bal:\s*₹([\d.]+)/); if(balMatch) balance = parseFloat(balMatch[1]);
+            pendingClearBillNo = billNo; document.getElementById('modal-bill-no').innerText = billNo;
+            document.getElementById('modal-balance').innerText = balance.toFixed(2); document.getElementById('modal-amount').value = balance.toFixed(2);
+            document.getElementById('modal-date').value = new Date().toISOString().split('T')[0]; 
+            document.getElementById('custom-modal-overlay').style.display = 'flex';
+        }
+        function closeCreditModal() { document.getElementById('custom-modal-overlay').style.display = 'none'; pendingClearBillNo = ""; }
+
+        async function submitCreditClear() {
+            const amount = document.getElementById('modal-amount').value; const mode = document.getElementById('modal-mode').value;
+            const dateVal = document.getElementById('modal-date').value; const btn = document.getElementById('modal-confirm-btn');
+
+            if(!amount || amount <= 0) { alert("Please enter a valid amount."); return; }
+            if(!dateVal) { alert("Please select a date."); return; }
+
+            const [year, month, day] = dateVal.split('-'); const formattedDate = `${day}/${month}/${year}`;
+            btn.disabled = true; btn.innerText = "Updating...";
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'clearCredit', billNo: pendingClearBillNo, amount: amount, clearMode: mode, clearDate: formattedDate }) });
+                const result = await response.json();
+                if(result.status === "Success") { closeCreditModal(); alert(`✅ ${result.message}`); fetchRecords(); } else { alert("❌ " + result.message); }
+            } catch(e) { alert("❌ Error connecting to server."); } finally { btn.disabled = false; btn.innerText = "Update Record"; }
+        }
+
+        function openUpdateModeModal(billNo, currentMode) {
+            pendingUpdateModeBillNo = billNo; document.getElementById('update-modal-bill-no').innerText = billNo;
+            let baseMode = "Cash"; if(currentMode.includes("GPay")) baseMode = "GPay"; else if(currentMode.includes("Card")) baseMode = "Card"; else if(currentMode.includes("Credit")) baseMode = "Credit";
+            document.getElementById('update-modal-mode').value = baseMode; document.getElementById('update-mode-overlay').style.display = 'flex';
+        }
+        function closeUpdateModeModal() { document.getElementById('update-mode-overlay').style.display = 'none'; pendingUpdateModeBillNo = ""; }
+
+        async function submitUpdateMode() {
+            const mode = document.getElementById('update-modal-mode').value; const btn = document.getElementById('update-modal-btn');
+            btn.disabled = true; btn.innerText = "Updating...";
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'updatePaymentMode', billNo: pendingUpdateModeBillNo, newMode: mode }) });
+                const result = await response.json();
+                if(result.status === "Success") { closeUpdateModeModal(); alert("✅ " + result.message); fetchRecords(); } else { alert("❌ " + result.message); }
+            } catch(e) { alert("❌ Error connecting to server."); } finally { btn.disabled = false; btn.innerText = "Save Changes"; }
+        }
+
+        function exportRecordsToExcel() {
+            let csv = []; let rows = document.querySelectorAll("#records-body tr");
+            if(rows.length === 0 || rows[0].innerText.includes("No transactions found")) return alert("No data to export!");
+            csv.push("Date,Bill No,Customer,Mobile,Items,Status,Amount");
+            rows.forEach(row => {
+                let cols = row.querySelectorAll("td");
+                if(cols.length >= 7) {
+                    let date = cols[0].innerText.replace(/,/g, ' '); let bill = cols[1].innerText; let cust = cols[2].innerText.replace(/,/g, ' ');
+                    let mob = cols[3].innerText; let items = cols[4].innerText.replace(/,/g, ' | '); let status = cols[5].innerText; let amt = cols[6].innerText.replace('₹', '').trim();
+                    csv.push(`"${date}","${bill}","${cust}","${mob}","${items}","${status}","${amt}"`);
+                }
+            });
+            let csvContent = "data:text/csv;charset=utf-8," + csv.join("\n"); let link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent));
+            link.setAttribute("download", "Transactions_" + new Date().toISOString().split('T')[0] + ".csv");
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        function generateSalesReport() {
+            const tbody = document.getElementById('report-body');
+            if(allRecords.length === 0) fetchRecords().then(() => parseAndRenderReport(tbody));
+            else parseAndRenderReport(tbody);
+        }
+
+        function parseAndRenderReport(tbody) {
+            const startVal = document.getElementById('report-start-date').value; const endVal = document.getElementById('report-end-date').value;
+            let reportMap = {}; 
+            allRecords.forEach(record => {
+                if(startVal || endVal) {
+                    let rDate = parseRecordDate(record.Date);
+                    if(startVal) { let sDate = new Date(startVal); sDate.setHours(0,0,0,0); if(rDate < sDate) return; }
+                    if(endVal) { let eDate = new Date(endVal); eDate.setHours(23,59,59,999); if(rDate > eDate) return; }
+                }
+                if(!record.Items) return;
+                const itemsArray = String(record.Items).split(" | ");
+                itemsArray.forEach(itemStr => {
+                    if(itemStr.startsWith("Discount:")) return; 
+                    const parts = itemStr.match(/^(\d+)x\s+(.+)\s+\(@₹([\d.]+)\)$/);
+                    if(parts) {
+                        const qty = parseInt(parts[1]); const name = parts[2]; const rate = parseFloat(parts[3]); const revenue = qty * rate;
+                        if(!reportMap[name]) reportMap[name] = { qty: 0, rev: 0 };
+                        reportMap[name].qty += qty; reportMap[name].rev += revenue;
+                    }
+                });
+            });
+            tbody.innerHTML = ""; let keys = Object.keys(reportMap);
+            if(keys.length === 0) { tbody.innerHTML = "<tr><td colspan='3' class='text-center'>No sales data for selected period.</td></tr>"; return; }
+            keys.sort((a, b) => reportMap[b].rev - reportMap[a].rev);
+            keys.forEach(key => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td style="font-weight: 500;">${key}</td><td style="text-align: center; color: var(--text-muted);">${reportMap[key].qty} Units</td><td style="text-align: right; font-weight: bold; color: var(--success);">₹${reportMap[key].rev.toFixed(2)}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportReportToExcel() {
+            let csv = []; let rows = document.querySelectorAll("#report-body tr");
+            if(rows.length === 0 || rows[0].innerText.includes("No sales data")) return alert("No data to export! Please generate the report first.");
+            csv.push("Item Name,Total Quantity Sold,Total Revenue (INR)");
+            rows.forEach(row => {
+                let cols = row.querySelectorAll("td");
+                if(cols.length === 3) {
+                    let name = cols[0].innerText.replace(/,/g, ' '); let qty = cols[1].innerText.replace(' Units', '').trim();
+                    let rev = cols[2].innerText.replace('₹', '').replace(/,/g, '').trim();
+                    csv.push(`${name},${qty},${rev}`);
+                }
+            });
+            let csvContent = "data:text/csv;charset=utf-8," + csv.join("\n"); let link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent));
+            link.setAttribute("download", "Sales_Report_" + new Date().toISOString().split('T')[0] + ".csv");
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('records-body'); tbody.innerHTML = "";
+            if(data.length === 0) { tbody.innerHTML = "<tr><td colspan='8' class='text-center'>No transactions found.</td></tr>"; return; }
+
+            [...data].reverse().forEach(row => {
+                const tr = document.createElement('tr');
+                let modeText = row.PaymentMode || '-'; let badgeColor = "#e2e8f0"; let textColor = "#475569";
+                
+                if(modeText.includes('Credit') && !modeText.includes('Cleared')) { tr.classList.add('row-credit'); }
+                if(modeText.includes('Cash') || modeText.includes('Cleared')) { badgeColor = "#dcfce7"; textColor = "#166534"; }
+                else if(modeText.includes('GPay')) { badgeColor = "#dbeafe"; textColor = "#1e40af"; }
+                else if(modeText.includes('Credit') && modeText.includes('Bal')) { badgeColor = "#fef08a"; textColor = "#854d0e"; } 
+                else if(modeText.includes('Credit')) { badgeColor = "#ffedd5"; textColor = "#9a3412"; }
+
+                let actionsHTML = `
+                    <button class="btn-action btn-edit" onclick="editBill('${row.BillNo}')" title="Edit Bill Details">✏️ Edit</button>
+                    <button class="btn-action btn-wa" onclick="takeScreenshotAndWhatsApp('${row.MobileNo}', generateReceiptHTML('${row.Date}', '${row.BillNo}', '${row.CustomerName}', '${row.MobileNo}', '${row.Items}', '${modeText}', '${row.Total}'))" title="Send WhatsApp">WA 📸</button>
+                    <button class="btn-action btn-update-mode" onclick="openUpdateModeModal('${row.BillNo}', '${modeText}')" title="Change Payment Method">🔄 Mode</button>
+                `;
+                if(modeText.includes('Credit') && !modeText.includes('Cleared')) { actionsHTML += `<button class="btn-action btn-clear" onclick="openCreditModal('${row.BillNo}', '${modeText}', '${row.Total}')">💰 Pay</button>`; }
+
+                tr.innerHTML = `
+                    <td style="color: var(--text-muted); font-size: 0.85rem;">${row.Date || '-'}</td>
+                    <td style="font-weight: bold; color: var(--primary-accent);">${row.BillNo || '-'}</td>
+                    <td style="font-weight: 600;">${row.CustomerName || '-'}</td>
+                    <td style="color: var(--text-muted);">${row.MobileNo || '-'}</td>
+                    <td style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.4;">${row.Items || '-'}</td>
+                    <td class="text-center"><span style="background: ${badgeColor}; color: ${textColor}; padding: 4px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">${modeText}</span></td>
+                    <td class="text-right" style="font-weight: 700;">₹${row.Total || '0.00'}</td>
+                    <td class="text-center" style="white-space: nowrap;">${actionsHTML}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
